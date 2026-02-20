@@ -107,7 +107,11 @@
     }
 
     .card.flipped { transform: rotateY(180deg); }
-    .card.matched { cursor: default; filter: drop-shadow(0 0 10px rgba(38,194,129,.5)); }
+    .card.matched {
+      cursor: default;
+      transform: rotateY(180deg);
+      filter: drop-shadow(0 0 10px rgba(38,194,129,.5));
+    }
 
     .status {
       margin-top: 14px;
