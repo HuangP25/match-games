@@ -109,8 +109,13 @@
     .card.flipped { transform: rotateY(180deg); }
     .card.matched {
       cursor: default;
-      transform: rotateY(180deg);
+      transform: none;
       filter: drop-shadow(0 0 10px rgba(38,194,129,.5));
+    }
+    .card.matched .back { display: none; }
+    .card.matched .front {
+      transform: none;
+      backface-visibility: visible;
     }
 
     .status {
