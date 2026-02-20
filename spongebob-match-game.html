@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>海綿寶寶角色配對遊戲</title>
+  <style>
+    :root {
+      --bg: #071a2f;
+      --panel: rgba(255,255,255,.1);
+      --text: #ecf5ff;
+      --accent: #4da3ff;
+      --ok: #2cc98a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      color: var(--text);
+      background: radial-gradient(1200px 800px at 20% 10%, #0f3b6b 0%, var(--bg) 60%);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .app { width: min(1100px, 100%); }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(4px);
+    }
+    .stats { display: flex; gap: 16px; font-weight: 800; flex-wrap: wrap; }
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(84px, 1fr));
+      gap: 12px;
+      perspective: 1000px;
+    }
+    .card {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3/4;
+      border: 0;
+      background: none;
+      padding: 0;
+      cursor: pointer;
+      transform-style: preserve-3d;
+      transition: transform .42s ease;
+    }
+    .face {
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      backface-visibility: hidden;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35);
+      user-select: none;
+    }
+    .back {
+      background: linear-gradient(145deg, #295c97, #163c67);
+      border: 1px solid rgba(255,255,255,.2);
+      font-size: clamp(28px, 4vw, 44px);
+    }
+    .front {
+      transform: rotateY(180deg);
+      background: #f8fbff;
+      border: 1px solid rgba(0,0,0,.06);
+      color: #11345a;
+      padding: 8px;
+      gap: 8px;
+    }
+    .avatar {
+      width: 92%;
+      height: 62%;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-size: clamp(44px, 7vw, 86px);
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    .name {
+      font-size: clamp(14px, 2.2vw, 22px);
+      font-weight: 900;
+      line-height: 1.2;
+      color: #0f3762;
+    }
+    .card.flipped { transform: rotateY(180deg); }
+    .card.matched {
+      transform: none;
+      cursor: default;
+      filter: drop-shadow(0 0 10px rgba(44,201,138,.5));
+    }
+    .card.matched .back { display: none; }
+    .card.matched .front {
+      transform: none;
+      backface-visibility: visible;
+      background: #edfff6;
+      border-color: rgba(30,122,83,.2);
+    }
+    .status { min-height: 24px; margin-top: 12px; font-weight: 800; }
+    .status.win { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="topbar">
+      <div class="stats">
+        <div>得分：<span id="score">0</span></div>
+        <div>步數：<span id="moves">0</span></div>
+        <div>配對：<span id="pairs">0</span>/<span id="totalPairs">8</span></div>
+      </div>
+      <button id="restart" class="btn">重新開始</button>
+    </section>
+
+    <section id="board" class="board"></section>
+    <p id="status" class="status">翻開兩張相同角色就得分！</p>
+  </main>
+
+  <script>
+    const roles = [
+      { name: '海綿寶寶', symbol: '🧽', color: 'linear-gradient(135deg,#ffd84a,#f2b705)' },
+      { name: '派大星', symbol: '⭐', color: 'linear-gradient(135deg,#ff9ec2,#ff6aa2)' },
+      { name: '章魚哥', symbol: '🎺', color: 'linear-gradient(135deg,#84d6d0,#4eb4af)' },
+      { name: '蟹老闆', symbol: '🦀', color: 'linear-gradient(135deg,#ff846b,#db3e29)' },
+      { name: '珊迪', symbol: '🐿️', color: 'linear-gradient(135deg,#e0f0ff,#a5c8e9)' },
+      { name: '皮老闆', symbol: '🧫', color: 'linear-gradient(135deg,#9fe277,#4ca34f)' },
+      { name: '泡芙老師', symbol: '🐡', color: 'linear-gradient(135deg,#ffd8a8,#f39a3e)' },
+      { name: '珍珍', symbol: '🐳', color: 'linear-gradient(135deg,#b9a6ff,#7e6ee6)' }
+    ];
+
+    const board = document.getElementById('board');
+    const scoreEl = document.getElementById('score');
+    const movesEl = document.getElementById('moves');
+    const pairsEl = document.getElementById('pairs');
+    const totalPairsEl = document.getElementById('totalPairs');
+    const statusEl = document.getElementById('status');
+    const restartBtn = document.getElementById('restart');
+
+    let firstCard = null, secondCard = null, lockBoard = false;
+    let score = 0, moves = 0, matchedPairs = 0;
+
+    totalPairsEl.textContent = roles.length;
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function createCard(role, index) {
+      const card = document.createElement('button');
+      card.className = 'card';
+      card.dataset.name = role.name;
+      card.dataset.index = index;
+      card.innerHTML = `
+        <span class="face back">❓</span>
+        <span class="face front">
+          <span class="avatar" style="background:${role.color}">${role.symbol}</span>
+          <span class="name">${role.name}</span>
+        </span>
+      `;
+      card.addEventListener('click', onFlip);
+      return card;
+    }
+
+    function renderBoard() {
+      board.innerHTML = '';
+      const deck = shuffle([...roles, ...roles]);
+      deck.forEach((r, i) => board.appendChild(createCard(r, i)));
+    }
+
+    function onFlip(e) {
+      const card = e.currentTarget;
+      if (lockBoard || card === firstCard || card.classList.contains('matched')) return;
+
+      card.classList.add('flipped');
+      if (!firstCard) {
+        firstCard = card;
+        return;
+      }
+
+      secondCard = card;
+      moves++;
+      movesEl.textContent = moves;
+      checkMatch();
+    }
+
+    function checkMatch() {
+      const ok = firstCard.dataset.name === secondCard.dataset.name;
+      if (ok) {
+        firstCard.classList.add('matched');
+        secondCard.classList.add('matched');
+        matchedPairs++;
+        score += 10;
+        statusEl.textContent = '配對成功！+10 分';
+        resetTurn();
+        updateStats();
+        checkWin();
+      } else {
+        lockBoard = true;
+        statusEl.textContent = '角色不同，再試一次～';
+        setTimeout(() => {
+          firstCard.classList.remove('flipped');
+          secondCard.classList.remove('flipped');
+          resetTurn();
+        }, 800);
+      }
+    }
+
+    function resetTurn() {
+      [firstCard, secondCard] = [null, null];
+      lockBoard = false;
+    }
+
+    function updateStats() {
+      scoreEl.textContent = score;
+      pairsEl.textContent = matchedPairs;
+    }
+
+    function checkWin() {
+      if (matchedPairs === roles.length) {
+        statusEl.textContent = `恭喜過關！總分 ${score}，共用了 ${moves} 步。`;
+        statusEl.classList.add('win');
+      }
+    }
+
+    function resetGame() {
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      score = 0;
+      moves = 0;
+      matchedPairs = 0;
+      statusEl.textContent = '翻開兩張相同角色就得分！';
+      statusEl.classList.remove('win');
+      scoreEl.textContent = score;
+      movesEl.textContent = moves;
+      pairsEl.textContent = matchedPairs;
+      renderBoard();
+    }
+
+    restartBtn.addEventListener('click', resetGame);
+    resetGame();
+  </script>
+</body>
+</html>
