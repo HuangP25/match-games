@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>數字配對遊戲</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(255, 255, 255, 0.08);
+      --text: #eaf0ff;
+      --card-back-1: #2b3570;
+      --card-back-2: #1a214a;
+      --card-front: #f8fbff;
+      --accent: #6f8cff;
+      --ok: #2cc98a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      color: var(--text);
+      background: radial-gradient(1200px 800px at 20% 10%, #182559 0%, var(--bg) 60%);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .app { width: min(980px, 100%); }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(4px);
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-weight: 800;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(70px, 1fr));
+      gap: 12px;
+      perspective: 1000px;
+    }
+
+    .card {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      border: 0;
+      background: none;
+      padding: 0;
+      cursor: pointer;
+      transform-style: preserve-3d;
+      transition: transform .4s ease;
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      user-select: none;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+      backface-visibility: hidden;
+    }
+
+    .back {
+      background: linear-gradient(145deg, var(--card-back-1), var(--card-back-2));
+      border: 1px solid rgba(255,255,255,.15);
+      color: #dae4ff;
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 900;
+    }
+
+    .front {
+      transform: rotateY(180deg);
+      background: var(--card-front);
+      border: 1px solid rgba(0,0,0,.05);
+      color: #24356d;
+      font-size: clamp(48px, 7vw, 80px);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .card.flipped { transform: rotateY(180deg); }
+
+    .card.matched {
+      transform: none;
+      cursor: default;
+      filter: drop-shadow(0 0 10px rgba(44,201,138,.5));
+    }
+
+    .card.matched .back { display: none; }
+
+    .card.matched .front {
+      transform: none;
+      backface-visibility: visible;
+      background: #edfff6;
+      color: #1e7a53;
+    }
+
+    .status {
+      min-height: 24px;
+      margin-top: 12px;
+      font-weight: 800;
+      color: #d8e2ff;
+    }
+
+    .status.win { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="topbar">
+      <div class="stats">
+        <div>得分：<span id="score">0</span></div>
+        <div>步數：<span id="moves">0</span></div>
+        <div>配對：<span id="pairs">0</span>/<span id="totalPairs">8</span></div>
+      </div>
+      <button id="restart" class="btn">重新開始</button>
+    </section>
+
+    <section id="board" class="board" aria-label="數字配對盤面"></section>
+    <p id="status" class="status">翻開兩張相同數字就得分！</p>
+  </main>
+
+  <script>
+    const nums = ['1','2','3','4','5','6','7','8'];
+
+    const board = document.getElementById('board');
+    const scoreEl = document.getElementById('score');
+    const movesEl = document.getElementById('moves');
+    const pairsEl = document.getElementById('pairs');
+    const totalPairsEl = document.getElementById('totalPairs');
+    const statusEl = document.getElementById('status');
+    const restartBtn = document.getElementById('restart');
+
+    let firstCard = null;
+    let secondCard = null;
+    let lockBoard = false;
+    let score = 0;
+    let moves = 0;
+    let matchedPairs = 0;
+
+    totalPairsEl.textContent = nums.length;
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function createCard(value, index) {
+      const card = document.createElement('button');
+      card.className = 'card';
+      card.dataset.value = value;
+      card.dataset.index = index;
+      card.innerHTML = `
+        <span class="face back">?</span>
+        <span class="face front">${value}</span>
+      `;
+      card.addEventListener('click', onFlip);
+      return card;
+    }
+
+    function renderBoard() {
+      board.innerHTML = '';
+      const deck = shuffle([...nums, ...nums]);
+      deck.forEach((value, i) => board.appendChild(createCard(value, i)));
+    }
+
+    function onFlip(e) {
+      const card = e.currentTarget;
+      if (lockBoard || card === firstCard || card.classList.contains('matched')) return;
+
+      card.classList.add('flipped');
+
+      if (!firstCard) {
+        firstCard = card;
+        return;
+      }
+
+      secondCard = card;
+      moves++;
+      movesEl.textContent = moves;
+      checkMatch();
+    }
+
+    function checkMatch() {
+      const ok = firstCard.dataset.value === secondCard.dataset.value;
+      if (ok) {
+        firstCard.classList.add('matched');
+        secondCard.classList.add('matched');
+        matchedPairs++;
+        score += 10;
+        statusEl.textContent = '配對成功！+10 分';
+        resetTurn();
+        updateStats();
+        checkWin();
+      } else {
+        lockBoard = true;
+        statusEl.textContent = '數字不同，再試一次～';
+        setTimeout(() => {
+          firstCard.classList.remove('flipped');
+          secondCard.classList.remove('flipped');
+          resetTurn();
+        }, 800);
+      }
+    }
+
+    function resetTurn() {
+      [firstCard, secondCard] = [null, null];
+      lockBoard = false;
+    }
+
+    function updateStats() {
+      scoreEl.textContent = score;
+      pairsEl.textContent = matchedPairs;
+    }
+
+    function checkWin() {
+      if (matchedPairs === nums.length) {
+        statusEl.textContent = `恭喜過關！總分 ${score}，共用了 ${moves} 步。`;
+        statusEl.classList.add('win');
+      }
+    }
+
+    function resetGame() {
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      score = 0;
+      moves = 0;
+      matchedPairs = 0;
+      statusEl.textContent = '翻開兩張相同數字就得分！';
+      statusEl.classList.remove('win');
+      scoreEl.textContent = score;
+      movesEl.textContent = moves;
+      pairsEl.textContent = matchedPairs;
+      renderBoard();
+    }
+
+    restartBtn.addEventListener('click', resetGame);
+    resetGame();
+  </script>
+</body>
+</html>
